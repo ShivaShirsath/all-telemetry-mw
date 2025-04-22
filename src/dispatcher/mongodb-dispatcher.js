@@ -62,26 +62,30 @@ class MongoDBDispatcher extends winston.Transport {
 
     const promises = [];
 
-    try {
-      for (const event of message.events) {
+    try {    
+      // Prepare the array of documents to be inserted
+      const documents = message.events.map(event => {
         const pid = event.context.pdata ? event.context.pdata.pid : undefined;
-        promises.push(
-          this.collection.insertOne({
-            api_id: message.id,
-            ver: message.ver,
-            params: message.params,
-            ets: message.ets,
-            events: event,
-            channel: event.context.channel,
-            pid: pid,
-            mid: message.mid,
-            syncts: message.syncts,
-          })
-        );
-      }
+        return {
+          api_id: message.id,
+          ver: message.ver,
+          params: message.params,
+          ets: message.ets,
+          createdAt: new Date(),
+          events: event,
+          channel: event.context.channel,
+          pid: pid,
+          mid: message.mid,
+          syncts: message.syncts,
+        };
+      });
+    
+      // Use insertMany to insert all the documents at once
+      await this.collection.insertMany(documents);
     } catch (err) {
       return callback(err);
     }
+    
 
     if (
       process.env.UrlForAnonymousDataToALL &&
