@@ -21,10 +21,12 @@ const envVariables = {
     cassandraTtl: process.env.telemetry_cassandra_ttl,
     port: process.env.telemetry_service_port || 9001,
     threads: process.env.telemetry_service_threads || os.cpus().length,
-    sendAnonymousDataToALL:process.env.sendAnonymousDataToALL || 'yes',
+    sendAnonymousDataToALL:process.env.sendAnonymousDataToALL || 'no',
     mongodbHost: process.env.MONGODB_HOST,
     mongodbDatabase: process.env.MONGODB_DATABASE,
     mongodbCollectionPrefix:process.env.MONGODB_COLLECTION_PREFIX,
-    mongodbConnectionUrl : process.env.MONGODB_CONNECTION_URL
+    mongodbConnectionUrl : process.env.MONGODB_CONNECTION_URL,
+    joseSecretKey : process.env.JOSE_SECRET,
+    jwtSiginInPrivateKey : process.env.JWT_SIGNIN_PRIVATE_KEY
 }
 module.exports = envVariables;

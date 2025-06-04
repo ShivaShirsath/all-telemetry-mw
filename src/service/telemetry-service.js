@@ -13,9 +13,9 @@ class TelemetryService {
         this.dispatcher = this.config.localStorageEnabled === 'true' ? new Dispatcher(config) : undefined;
     }
     dispatch(req, res) {
-        console.log("=====16=======")
+        
         const message = req.body;
-        console.log("message.did", message.did)
+        message.userId = req.user.virtual_id;
         message.channel = req.get('x-channel-id');
         message.pid = req.get('x-app-id');
         if (!message.mid) message.mid = uuidv1();
@@ -23,13 +23,13 @@ class TelemetryService {
         const data = JSON.stringify(message);
         console.log("message", message)
         if (this.config.localStorageEnabled === 'true' || this.config.telemetryProxyEnabled === 'true') {
-            console.log("========25==========")
+            
             if (this.config.localStorageEnabled === 'true' && this.config.telemetryProxyEnabled !== 'true') {
-                console.log("==========27==========")
+                
                 // Store locally and respond back with proper status code
                 this.dispatcher.dispatch(message.mid, data, this.getRequestCallBack(req, res));
             } else if (this.config.localStorageEnabled === 'true' && this.config.telemetryProxyEnabled === 'true') {
-                console.log("=========31========")
+                
                 // Store locally and proxy to the specified URL. If the proxy fails ignore the error as the local storage is successful. Do a sync later
                 const options = this.getProxyRequestObj(req, data);
                 request.post(options, (err, data) => {
@@ -38,7 +38,7 @@ class TelemetryService {
                 });
                 this.dispatcher.dispatch(message.mid, data, this.getRequestCallBack(req, res));
             } else if (this.config.localStorageEnabled !== 'true' && this.config.telemetryProxyEnabled === 'true') {
-                console.log("============40===========")
+                
                 // Just proxy
                 const options = this.getProxyRequestObj(req, data);
                 request.post(options, this.getRequestCallBack(req, res));
