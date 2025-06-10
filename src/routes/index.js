@@ -1,8 +1,9 @@
 const express = require('express'),
   router = express.Router(),
-  telemetryService = require('../service/telemetry-service');
+  telemetryService = require('../service/telemetry-service'),
+  authmiddleware = require('../auth/auth.guard');
 
-router.post('/v1/telemetry', (req, res) => telemetryService.dispatch(req, res));
+router.post('/v1/telemetry', (req, res, next) => authmiddleware.canActivate(req, res, next),(req, res) => telemetryService.dispatch(req, res));
 
 router.get('/health', (req, res) => telemetryService.health(req, res));
 
