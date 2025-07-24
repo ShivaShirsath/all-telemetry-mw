@@ -15,7 +15,9 @@ class TelemetryService {
     dispatch(req, res) {
         
         const message = req.body;
-        message.userId = req.user.virtual_id;
+        if(this.config.authEnable === 'true'){
+            message.userId = req.user.virtual_id;
+        }
         message.channel = req.get('x-channel-id');
         message.pid = req.get('x-app-id');
         if (!message.mid) message.mid = uuidv1();

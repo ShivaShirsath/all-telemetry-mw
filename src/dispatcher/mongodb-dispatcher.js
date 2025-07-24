@@ -1,6 +1,6 @@
 const winston = require("winston");
 const { MongoClient } = require("mongodb");
-
+const envVariables = require("../envVariables");
 class MongoDBDispatcher extends winston.Transport {
   constructor(options) {
     super();
@@ -66,18 +66,20 @@ class MongoDBDispatcher extends winston.Transport {
       // Prepare the array of documents to be inserted
       const documents = message.events.map(event => {
         const pid = event.context.pdata ? event.context.pdata.pid : undefined;
-        event.context.uid = message.userId
-        event.context.cdata = event.context.cdata
-        .map((cdataEle) => {
-          if (cdataEle.type === "Buddy User") {
-            cdataEle.id = "anonymous";
-          }
-          if(cdataEle.type === "User" || cdataEle.type === "virtualId") {
-            cdataEle.id = message.userId;
-            console.log(cdataEle.id)
-          }
-          return cdataEle;
-        });
+        if(envVariables.authEnable === 'true'){
+          event.actor.id = message.userId
+          event.context.uid = message.userId
+          event.context.cdata = event.context.cdata
+          .map((cdataEle) => {
+            if (cdataEle.type === "Buddy User") {
+              cdataEle.id = "anonymous";
+            }
+            if(cdataEle.type === "User" || cdataEle.type === "virtualId") {
+              cdataEle.id = message.userId;
+            }
+            return cdataEle;
+          });
+        }
         return {
           api_id: message.id,
           ver: message.ver,

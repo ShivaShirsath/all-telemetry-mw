@@ -27,6 +27,7 @@ const envVariables = {
     mongodbCollectionPrefix:process.env.MONGODB_COLLECTION_PREFIX,
     mongodbConnectionUrl : process.env.MONGODB_CONNECTION_URL,
     joseSecretKey : process.env.JOSE_SECRET,
-    jwtSiginInPrivateKey : process.env.JWT_SIGNIN_PRIVATE_KEY
+    jwtSiginInPrivateKey : process.env.JWT_SIGNIN_PRIVATE_KEY,
+    authEnable : process.env.AUTH_ENABLE || 'false'
 }
 module.exports = envVariables;
