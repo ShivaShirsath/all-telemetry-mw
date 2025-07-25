@@ -4,12 +4,10 @@ const express = require('express'),
   authmiddleware = require('../auth/auth.guard'),
   envVariables = require('../envVariables');
 
-if(envVariables.authEnable === 'true'){
-  router.post('/v1/telemetry', (req, res, next) => authmiddleware.canActivate(req, res, next),(req, res) => telemetryService.dispatch(req, res));
-}
-else{
-  router.post('/v1/telemetry', (req, res) => telemetryService.dispatch(req, res));
-}
+
+router.post('/v2/telemetry', (req, res, next) => authmiddleware.canActivate(req, res, next),(req, res) => telemetryService.dispatch(req, res));
+
+router.post('/v1/telemetry', (req, res) => telemetryService.dispatch(req, res));
 
 router.get('/health', (req, res) => telemetryService.health(req, res));
 

@@ -13,11 +13,13 @@ class TelemetryService {
         this.dispatcher = this.config.localStorageEnabled === 'true' ? new Dispatcher(config) : undefined;
     }
     dispatch(req, res) {
-        
+        const url = req.originalUrl;
+        const version = url.split('/')[1];
         const message = req.body;
-        if(this.config.authEnable === 'true'){
+        if(version === 'v2'){
             message.userId = req.user.virtual_id;
         }
+        message.version = version;
         message.channel = req.get('x-channel-id');
         message.pid = req.get('x-app-id');
         if (!message.mid) message.mid = uuidv1();
