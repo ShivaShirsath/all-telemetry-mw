@@ -1,6 +1,5 @@
 const winston = require("winston");
 const { MongoClient } = require("mongodb");
-const envVariables = require("../envVariables");
 class MongoDBDispatcher extends winston.Transport {
   constructor(options) {
     super();
