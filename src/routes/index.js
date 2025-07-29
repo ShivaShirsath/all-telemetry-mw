@@ -3,7 +3,10 @@ const express = require('express'),
   telemetryService = require('../service/telemetry-service'),
   authmiddleware = require('../auth/auth.guard');
 
-router.post('/v1/telemetry', (req, res, next) => authmiddleware.canActivate(req, res, next),(req, res) => telemetryService.dispatch(req, res));
+
+router.post('/v2/telemetry', (req, res, next) => authmiddleware.canActivate(req, res, next),(req, res) => telemetryService.dispatch(req, res));
+
+router.post('/v1/telemetry', (req, res) => telemetryService.dispatch(req, res));
 
 router.get('/health', (req, res) => telemetryService.health(req, res));
 
