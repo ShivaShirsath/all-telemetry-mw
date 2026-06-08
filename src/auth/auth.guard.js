@@ -1,4 +1,5 @@
 const { createHash } = require('crypto');
+const axios = require('axios');
 require('dotenv').config();
 envVariables = require('../envVariables');
 
@@ -11,6 +12,19 @@ if (!globalThis.crypto) {
 class JwtAuthGuard {
   constructor() {}
 
+  async checkTokenStatus(user_id, token) {
+    try {
+      const url = process.env.ALL_ORC_SERVICE_URL;
+      const response = await axios.post(url, { user_id, token });
+      return {
+        isActive: response.data?.result?.isActive ?? false,
+      };
+    } catch (error) {
+      console.error('Error calling token-status API:', error?.response?.data || error.message);
+      return { isActive: false };
+    }
+  }
+
   async canActivate(req, res, next) {
     const authHeader = req.headers.authorization;
     if (!authHeader) {
@@ -22,26 +36,26 @@ class JwtAuthGuard {
     try {
       const { jwtDecrypt, jwtVerify } = await import('jose');
 
-      // Decryption key (for JWE)
       const secretKey = process.env.JOSE_SECRET;
       const decryptionKey = new Uint8Array(
         createHash('sha256').update(secretKey).digest()
       );
 
-      // Decrypt the outer JWT (JWE)
       const { payload: decryptedPayload } = await jwtDecrypt(token, decryptionKey);
 
       if (!decryptedPayload.jwtSignedToken) {
         return res.status(401).json({ message: 'jwtSignedToken not found in decrypted payload' });
       }
 
-      // Verify the inner signed JWT (JWS)
       const jwtSignedToken = String(decryptedPayload.jwtSignedToken);
-      const jwtSigninKey = new TextEncoder().encode(
-        process.env.JWT_SIGNIN_PRIVATE_KEY
-      );
+      const jwtSigninKey = new TextEncoder().encode(process.env.JWT_SIGNIN_PRIVATE_KEY);
 
       const { payload: verifiedPayload } = await jwtVerify(jwtSignedToken, jwtSigninKey);
+
+      const { isActive } = await this.checkTokenStatus(verifiedPayload.virtual_id, token);
+      if (!isActive) {
+        return res.status(401).json({ message: 'User is logged out' });
+      }
 
       req.user = verifiedPayload;
       next();
