@@ -47,7 +47,8 @@ class Dispatcher {
             console.log('mysql transport enabled !!!');
         }else if (this.options.dispatcher === 'mongodb') {
           console.log("inside mongodb");
-          this.logger.add(winston.transports.mongodb, this.options);
+          this.mongoTransport = new (winston.transports.mongodb)(this.options);
+          this.logger.add(this.mongoTransport, null, true);
           console.log('mongodb transport enabled !!!');
         }else { // Log to console
             console.log("inside else")
@@ -65,6 +66,8 @@ class Dispatcher {
     health(callback) {
         if (this.options.dispatcher === 'kafka') {
             this.logger.transports['kafka'].health(callback);
+        } else if (this.options.dispatcher === 'mongodb') {
+            callback(this.mongoTransport ? this.mongoTransport.isHealthy() : false);
         } else if (this.options.dispatcher === 'console') {
             callback(true)
         } else { // need to add health method for file/cassandra

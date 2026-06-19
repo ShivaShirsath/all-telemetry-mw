@@ -52,19 +52,30 @@ class TelemetryService {
         }
     }
     health(req, res) {
+        const dbType = this.config.dispatcher || 'mongodb';
+
+        const buildResponse = (mongoOk) => {
+            const allOk = mongoOk !== false;
+            return {
+                status: allOk ? 'ok' : 'degraded',
+                services: {
+                    ...(mongoOk !== null && { mongodb: mongoOk }),
+                },
+                uptime: process.uptime(),
+                timestamp: new Date().toISOString(),
+            };
+        };
+
         if (this.config.localStorageEnabled === 'true') {
             this.dispatcher.health((healthy) => {
-                console.log("healthy", healthy)
-                console.log(this.dispatcher.health)
-                if (healthy)
-                    this.sendSuccess(res, { id: 'api.health' });
-                else
-                    this.sendError(res, { id: 'api.health', params: { err: 'Telemetry API is unhealthy' } });
-            })
+                const mongoOk = dbType === 'mongodb' ? healthy : null;
+                const body = buildResponse(mongoOk);
+                res.status(body.status === 'ok' ? 200 : 503).json(body);
+            });
         } else if (this.config.telemetryProxyEnabled === 'true') {
-            this.sendSuccess(res, { id: 'api.health' });
+            res.status(200).json(buildResponse(null));
         } else {
-            this.sendError(res, { id: 'api.health', params: { err: 'Configuration error' } });
+            res.status(503).json(buildResponse(false));
         }
     }
     getRequestCallBack(req, res) {
