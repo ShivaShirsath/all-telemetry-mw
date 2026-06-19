@@ -48,6 +48,10 @@ class MongoDBDispatcher extends winston.Transport {
       }
     })();
   }
+  isHealthy() {
+    return this.client !== null && this.collection !== null;
+  }
+
   async log(level, msg, meta, callback) {
     let message = msg;
     if (typeof message === "string") {
