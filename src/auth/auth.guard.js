@@ -1,11 +1,10 @@
-const { createHash } = require('crypto');
-const http = require('http');
-const https = require('https');
+const { createHash, webcrypto } = require('node:crypto');
+const http = require('node:http');
+const https = require('node:https');
 require('dotenv').config();
 
 // Polyfill for jose in Node.js (CommonJS)
 if (!globalThis.crypto) {
-  const { webcrypto } = require('crypto');
   globalThis.crypto = webcrypto;
 }
 
@@ -52,7 +51,7 @@ const postJson = (urlStr, body) => {
 
 const getEncryptionKey = (jose) => {
   const encKeyStr = process.env.JWT_ENCRYPTION_PRIVATE_KEY;
-  if (encKeyStr && jose && jose.base64url) {
+  if (encKeyStr && jose?.base64url) {
     try {
       return jose.base64url.decode(encKeyStr.replace(/^["']|["']$/g, '').trim());
     } catch (e) {
