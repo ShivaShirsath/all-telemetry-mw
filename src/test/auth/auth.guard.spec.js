@@ -6,6 +6,18 @@ const authGuard = require('../../auth/auth.guard');
 describe('auth.guard in all-telemetry-mw', () => {
   const originalEnv = process.env;
 
+  const mockHttp = () => ({
+    res: {
+      status: sinon.stub().returnsThis(),
+      json: sinon.stub(),
+    },
+    next: sinon.spy(),
+  });
+
+  const createMockJose = (decodeStub) => ({
+    base64url: { decode: decodeStub },
+  });
+
   beforeEach(() => {
     process.env = Object.assign({}, originalEnv);
   });
@@ -19,11 +31,7 @@ describe('auth.guard in all-telemetry-mw', () => {
     it('should decode base64url if JOSE_ENCRYPTION_PRIVATE_KEY is set', () => {
       process.env.JOSE_ENCRYPTION_PRIVATE_KEY = 'base64key';
       const mockDecoded = new Uint8Array([1, 2, 3]);
-      const mockJose = {
-        base64url: {
-          decode: sinon.stub().returns(mockDecoded),
-        },
-      };
+      const mockJose = createMockJose(sinon.stub().returns(mockDecoded));
 
       const result = authGuard.getEncryptionKey(mockJose);
       expect(mockJose.base64url.decode.calledWith('base64key')).to.be.true;
@@ -33,11 +41,7 @@ describe('auth.guard in all-telemetry-mw', () => {
     it('should fallback to sha256 hash if base64url decode throws error', () => {
       process.env.JOSE_ENCRYPTION_PRIVATE_KEY = 'invalid-base64';
       process.env.JOSE_SECRET = 'my-secret';
-      const mockJose = {
-        base64url: {
-          decode: sinon.stub().throws(new Error('Invalid base64url')),
-        },
-      };
+      const mockJose = createMockJose(sinon.stub().throws(new Error('Invalid base64url')));
 
       const result = authGuard.getEncryptionKey(mockJose);
       expect(result).to.be.instanceOf(Buffer);
@@ -54,45 +58,38 @@ describe('auth.guard in all-telemetry-mw', () => {
   });
 
   describe('canActivate', () => {
-    it('should return 401 when Authorization header is missing', async () => {
-      const req = { headers: {} };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      const next = sinon.spy();
+    const invalidHeaderScenarios = [
+      {
+        scenario: 'Authorization header is missing',
+        headers: {},
+        expectedMsg: 'Authorization header missing',
+      },
+      {
+        scenario: 'Authorization header format is invalid',
+        headers: { authorization: 'Basic some-token' },
+        expectedMsg: 'Invalid authorization header format',
+      },
+    ];
 
-      await authGuard.canActivate(req, res, next);
-      expect(res.status.calledWith(401)).to.be.true;
-      expect(res.json.calledWith({ message: 'Authorization header missing' })).to.be.true;
-      expect(next.called).to.be.false;
-    });
-
-    it('should return 401 when Authorization header format is invalid', async () => {
-      const req = { headers: { authorization: 'Basic some-token' } };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      const next = sinon.spy();
-
-      await authGuard.canActivate(req, res, next);
-      expect(res.status.calledWith(401)).to.be.true;
-      expect(res.json.calledWith({ message: 'Invalid authorization header format' })).to.be.true;
-      expect(next.called).to.be.false;
+    invalidHeaderScenarios.forEach(({ scenario, headers, expectedMsg }) => {
+      it(`should return 401 when ${scenario}`, async () => {
+        const { res, next } = mockHttp();
+        await authGuard.canActivate({ headers }, res, next);
+        expect(res.status.calledWith(401)).to.be.true;
+        expect(res.json.calledWith({ message: expectedMsg })).to.be.true;
+        expect(next.called).to.be.false;
+      });
     });
 
     it('should return 401 when token status check returns isActive false', async () => {
-      const req = { headers: { authorization: 'Bearer valid.jwt.token' } };
-      const res = {
-        status: sinon.stub().returnsThis(),
-        json: sinon.stub(),
-      };
-      const next = sinon.spy();
-
+      const { res, next } = mockHttp();
       sinon.stub(authGuard, 'checkTokenStatus').resolves({ isActive: false });
 
-      await authGuard.canActivate(req, res, next);
+      await authGuard.canActivate(
+        { headers: { authorization: 'Bearer valid.jwt.token' } },
+        res,
+        next
+      );
       expect(res.status.calledWith(401)).to.be.true;
       expect(next.called).to.be.false;
     });
