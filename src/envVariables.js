@@ -28,8 +28,5 @@ const envVariables = {
     mongodbConnectionUrl : process.env.MONGODB_CONNECTION_URL,
     joseSecretKey : process.env.JOSE_SECRET,
     jwtSiginInPrivateKey : process.env.JWT_SIGNIN_PRIVATE_KEY,
-    jwtEncryptionPrivateKey: process.env.JWT_ENCRYPTION_PRIVATE_KEY,
-    axlLoginServiceUrl: process.env.AXL_LOGIN_SERVICE_URL,
-    allOrcServiceUrl: process.env.ALL_ORC_SERVICE_URL,
 }
 module.exports = envVariables;

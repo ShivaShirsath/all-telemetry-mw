@@ -50,12 +50,12 @@ const postJson = (urlStr, body) => {
 };
 
 const getEncryptionKey = (jose) => {
-  const encKeyStr = process.env.JWT_ENCRYPTION_PRIVATE_KEY;
+  const encKeyStr = process.env.JOSE_ENCRYPTION_PRIVATE_KEY;
   if (encKeyStr && jose?.base64url) {
     try {
       return jose.base64url.decode(encKeyStr.replace(/^["']|["']$/g, '').trim());
     } catch (e) {
-      console.warn('Failed to base64url decode JWT_ENCRYPTION_PRIVATE_KEY, falling back to secret hash', e);
+      console.warn('Failed to base64url decode JOSE_ENCRYPTION_PRIVATE_KEY, falling back to secret hash', e);
     }
   }
   const secretKey = (process.env.JOSE_SECRET || '').replace(/^["']|["']$/g, '').trim();
@@ -63,7 +63,7 @@ const getEncryptionKey = (jose) => {
 };
 
 const getSigningKey = () => {
-  const signinKeyStr = (process.env.JWT_SIGNIN_PRIVATE_KEY || '').replace(/^["']|["']$/g, '').trim();
+  const signinKeyStr = (process.env.JOSE_SIGNIN_PRIVATE_KEY || '').replace(/^["']|["']$/g, '').trim();
   return new TextEncoder().encode(signinKeyStr);
 };
 
@@ -71,36 +71,13 @@ class JwtAuthGuard {
   constructor() {}
 
   async checkTokenStatus(userId, token) {
-    const orcServiceUrl = process.env.ALL_ORC_SERVICE_URL;
     const loginServiceUrl = process.env.AXL_LOGIN_SERVICE_URL;
-
-    if (orcServiceUrl) {
-      try {
-        const response = await this.postJson(orcServiceUrl, {
-          user_id: userId,
-          token: token,
-        });
-        const isActive =
-          response?.result?.isActive ??
-          response?.data?.result?.isActive ??
-          response?.isActive ??
-          null;
-        if (isActive !== null) {
-          return { isActive: Boolean(isActive) };
-        }
-      } catch (err) {
-        console.error('Error fetching token status from orchestration service:', err?.message || err);
-      }
-    }
 
     if (loginServiceUrl) {
       try {
-        const statusData = await this.postJson(
-          `${loginServiceUrl}/api/v1/virtualId/tokenStatus`,
-          {
-            user_id: Number(userId) || userId,
-          }
-        );
+        const statusData = await this.postJson(loginServiceUrl, {
+          user_id: Number(userId) || userId,
+        });
         const activeToken =
           statusData?.responseObj?.responseDataParams?.data?.token ??
           statusData?.data?.token ??
@@ -144,17 +121,13 @@ class JwtAuthGuard {
 
       const { payload: verifiedPayload } = await jose.jwtVerify(jwtSignedToken, jwtSigninKey);
 
-      const { exp } = verifiedPayload;
-      const virtualId =
-        verifiedPayload.virtual_id ??
-        verifiedPayload.virtualId ??
-        verifiedPayload.userId;
+      const { exp, virtualId } = verifiedPayload;
 
       if (!exp || exp <= Math.floor(Date.now() / 1000)) {
         return res.status(401).json({ message: 'Token expired' });
       }
 
-      if (!virtualId) {
+      if (!virtualId ||(typeof virtualId !== 'string' && typeof virtualId !== 'number')) {
         return res.status(401).json({ message: 'Missing virtual_id in token payload' });
       }
 
