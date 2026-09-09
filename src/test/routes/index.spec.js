@@ -29,4 +29,18 @@ describe('route test', () => {
             done()
         });
     });
+
+    it('should return 401 for "/v2/telemetry" when authorization header is missing', function (done) {
+        mockServer.post('/v2/telemetry').then(res => {
+            expect(res.status).to.equal(401);
+            done();
+        });
+    });
+
+    it('should return 401 for "/v3/telemetry" when authorization header is missing', function (done) {
+        mockServer.post('/v3/telemetry').then(res => {
+            expect(res.status).to.equal(401);
+            done();
+        });
+    });
 });

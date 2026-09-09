@@ -1,0 +1,174 @@
+const { createHash, webcrypto } = require('node:crypto');
+const http = require('node:http');
+const https = require('node:https');
+require('dotenv').config();
+
+// Polyfill for jose in Node.js (CommonJS)
+if (!globalThis.crypto) {
+  globalThis.crypto = webcrypto;
+}
+
+const postJson = (urlStr, body) => {
+  return new Promise((resolve, reject) => {
+    try {
+      const url = new URL(urlStr);
+      const data = JSON.stringify(body);
+      const transport = url.protocol === 'https:' ? https : http;
+      const req = transport.request(
+        url,
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Content-Length': Buffer.byteLength(data),
+          },
+        },
+        (res) => {
+          let responseBody = '';
+          res.on('data', (chunk) => {
+            responseBody += chunk;
+          });
+          res.on('end', () => {
+            try {
+              const parsed = JSON.parse(responseBody);
+              resolve(parsed);
+            } catch (parseErr) {
+              reject(parseErr);
+            }
+          });
+        }
+      );
+      req.on('error', (err) => {
+        reject(err);
+      });
+      req.write(data);
+      req.end();
+    } catch (err) {
+      reject(err);
+    }
+  });
+};
+
+const getEncryptionKey = (jose) => {
+  const encKeyStr = process.env.JOSE_ENCRYPTION_PRIVATE_KEY;
+  if (encKeyStr && jose?.base64url) {
+    return jose.base64url.decode(encKeyStr);
+  }
+  throw new Error('JOSE_ENCRYPTION_PRIVATE_KEY is missing or invalid');
+};
+
+const getSigningKey = () => {
+  const signinKeyStr = process.env.JOSE_SIGNIN_PRIVATE_KEY || '';
+  return new TextEncoder().encode(signinKeyStr);
+};
+
+class JwtAuthGuardV3 {
+  constructor() {}
+
+  async checkTokenStatus(userId, token) {
+    const loginServiceUrl = process.env.AXL_LOGIN_SERVICE_URL;
+
+    if (loginServiceUrl) {
+      try {
+        const statusData = await this.postJson(loginServiceUrl, {
+          user_id: Number(userId) || userId,
+        });
+        const activeToken =
+          statusData?.responseObj?.responseDataParams?.data?.token ??
+          statusData?.data?.token ??
+          statusData?.token ??
+          null;
+        if (activeToken) {
+          return { isActive: activeToken === token };
+        }
+      } catch (fetchErr) {
+        console.error('Error fetching token status from axl-login-service:', fetchErr?.message || fetchErr);
+      }
+    }
+
+    const orcServiceUrl = process.env.ALL_ORC_SERVICE_URL;
+    if (orcServiceUrl) {
+      try {
+        const orcData = await this.postJson(orcServiceUrl, {
+          user_id: Number(userId) || userId,
+          token,
+        });
+        const isActive =
+          orcData?.result?.isActive ??
+          orcData?.responseObj?.responseDataParams?.data?.isActive ??
+          orcData?.data?.isActive ??
+          orcData?.isActive ??
+          false;
+        return { isActive: Boolean(isActive) };
+      } catch (err) {
+        console.error('Error fetching token status from orchestration:', err?.message || err);
+      }
+    }
+
+    return { isActive: false };
+  }
+
+  async canActivate(req, res, next) {
+    const authHeader = req.headers.authorization || req.headers.Authorization;
+    if (!authHeader) {
+      return res.status(401).json({ message: 'Authorization header missing' });
+    }
+
+    const parts = authHeader.split(' ');
+    if (parts.length !== 2 || parts[0] !== 'Bearer' || !parts[1]) {
+      return res.status(401).json({ message: 'Invalid authorization header format' });
+    }
+    const token = parts[1];
+
+    try {
+      const jose = await import('jose');
+
+      const encryptionKey = this.getEncryptionKey(jose);
+      const { payload: decryptedPayload } = await jose.jwtDecrypt(token, encryptionKey);
+
+      if (!decryptedPayload.jwtSignedToken) {
+        return res.status(401).json({ message: 'jwtSignedToken not found in decrypted payload' });
+      }
+
+      const jwtSignedToken = String(decryptedPayload.jwtSignedToken);
+      const jwtSigninKey = this.getSigningKey();
+
+      const { payload: verifiedPayload } = await jose.jwtVerify(jwtSignedToken, jwtSigninKey);
+
+      const { exp, virtualId } = verifiedPayload;
+
+      if (!exp || exp <= Math.floor(Date.now() / 1000)) {
+        return res.status(401).json({ message: 'Token expired' });
+      }
+
+      if (!virtualId || (typeof virtualId !== 'string' && typeof virtualId !== 'number')) {
+        return res.status(401).json({ message: 'Missing virtual_id in token payload' });
+      }
+
+      const { isActive } = await this.checkTokenStatus(virtualId, token);
+      if (!isActive) {
+        return res.status(401).json({ message: 'User is logged out' });
+      }
+
+      req.user = {
+        ...verifiedPayload,
+        virtualId: virtualId,
+        virtual_id: virtualId,
+      };
+      next();
+    } catch (err) {
+      if (err && (err.code === 'ERR_JWT_EXPIRED' || (typeof err.message === 'string' && err.message.includes('expired')))) {
+        return res.status(401).json({ message: 'Token expired' });
+      }
+      console.error('JWT error:', err.message || err);
+      return res.status(401).json({ message: 'Invalid or expired token' });
+    }
+  }
+}
+
+const instance = new JwtAuthGuardV3();
+instance.getEncryptionKey = getEncryptionKey;
+instance.getSigningKey = getSigningKey;
+instance.postJson = postJson;
+
+module.exports = instance;

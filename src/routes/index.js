@@ -1,8 +1,10 @@
 const express = require('express'),
   router = express.Router(),
   telemetryService = require('../service/telemetry-service'),
-  authmiddleware = require('../auth/auth.guard');
+  authmiddleware = require('../auth/auth.guard'),
+  authV3Middleware = require('../auth/auth.guard.v3');
 
+router.post('/v3/telemetry', (req, res, next) => authV3Middleware.canActivate(req, res, next), (req, res) => telemetryService.dispatch(req, res));
 
 router.post('/v2/telemetry', (req, res, next) => authmiddleware.canActivate(req, res, next),(req, res) => telemetryService.dispatch(req, res));
 

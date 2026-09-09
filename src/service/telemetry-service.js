@@ -18,6 +18,8 @@ class TelemetryService {
         const message = req.body;
         if(version === 'v2'){
             message.userId = req.user.virtual_id;
+        } else if (version === 'v3') {
+            message.userId = req.user.virtualId || req.user.virtual_id;
         }
         message.version = version;
         message.channel = req.get('x-channel-id');

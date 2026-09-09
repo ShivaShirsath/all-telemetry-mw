@@ -11,7 +11,7 @@ describe('telemetry Service', () => {
     beforeEach(() => {
         delete require.cache[require.resolve(envVariablesPath)] // deleting cached envVariables to test different configurations
         delete require.cache[require.resolve(telemetryServicePath)] // deleting cached telemetryService to test different configurations
-        req = sinon.stub({header: () => true, get: () => 'header', body: {}});
+        req = sinon.stub({header: () => true, get: () => 'header', body: {}, originalUrl: '/v2/telemetry', user: { virtual_id: 'test' }});
         res = sinon.stub({status: () =>{}, json: ()=>{}});
         date = sinon.useFakeTimers();
         fakePostMethod = sinon.stub(request, "post");
