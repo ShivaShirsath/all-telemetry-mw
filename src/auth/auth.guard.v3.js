@@ -1,83 +1,39 @@
-const { createHash, webcrypto } = require('node:crypto');
-const http = require('node:http');
-const https = require('node:https');
+const axios = require('axios');
 require('dotenv').config();
 
 // Polyfill for jose in Node.js (CommonJS)
 if (!globalThis.crypto) {
+  const { webcrypto } = require('crypto');
   globalThis.crypto = webcrypto;
 }
-
-const postJson = (urlStr, body) => {
-  return new Promise((resolve, reject) => {
-    try {
-      const url = new URL(urlStr);
-      const data = JSON.stringify(body);
-      const transport = url.protocol === 'https:' ? https : http;
-      const req = transport.request(
-        url,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Content-Length': Buffer.byteLength(data),
-          },
-        },
-        (res) => {
-          let responseBody = '';
-          res.on('data', (chunk) => {
-            responseBody += chunk;
-          });
-          res.on('end', () => {
-            try {
-              const parsed = JSON.parse(responseBody);
-              resolve(parsed);
-            } catch (parseErr) {
-              reject(parseErr);
-            }
-          });
-        }
-      );
-      req.on('error', (err) => {
-        reject(err);
-      });
-      req.write(data);
-      req.end();
-    } catch (err) {
-      reject(err);
-    }
-  });
-};
-
-const getEncryptionKey = (jose) => {
-  const encKeyStr = process.env.JOSE_ENCRYPTION_PRIVATE_KEY;
-  if (encKeyStr && jose?.base64url) {
-    return jose.base64url.decode(encKeyStr);
-  }
-  throw new Error('JOSE_ENCRYPTION_PRIVATE_KEY is missing or invalid');
-};
-
-const getSigningKey = () => {
-  const signinKeyStr = process.env.JOSE_SIGNIN_PRIVATE_KEY || '';
-  return new TextEncoder().encode(signinKeyStr);
-};
-
 class JwtAuthGuardV3 {
   constructor() {}
+
+  getEncryptionKey(jose) {
+    const encKeyStr = process.env.JOSE_ENCRYPTION_PRIVATE_KEY;
+    if (encKeyStr && jose?.base64url) {
+      return jose.base64url.decode(encKeyStr);
+    }
+    throw new Error('JOSE_ENCRYPTION_PRIVATE_KEY is missing or invalid');
+  }
+
+  getSigningKey() {
+    const signinKeyStr = process.env.JOSE_SIGNIN_PRIVATE_KEY || '';
+    return new TextEncoder().encode(signinKeyStr);
+  }
 
   async checkTokenStatus(userId, token) {
     const loginServiceUrl = process.env.AXL_LOGIN_SERVICE_URL;
 
     if (loginServiceUrl) {
       try {
-        const statusData = await this.postJson(loginServiceUrl, {
+        const response = await axios.post(loginServiceUrl, {
           user_id: Number(userId) || userId,
         });
         const activeToken =
-          statusData?.responseObj?.responseDataParams?.data?.token ??
-          statusData?.data?.token ??
-          statusData?.token ??
-          null;
+          response.data?.responseObj?.responseDataParams?.data?.token ??
+          response.data?.data?.token ??
+          response.data?.token;
         if (activeToken) {
           return { isActive: activeToken === token };
         }
@@ -89,15 +45,15 @@ class JwtAuthGuardV3 {
     const orcServiceUrl = process.env.ALL_ORC_SERVICE_URL;
     if (orcServiceUrl) {
       try {
-        const orcData = await this.postJson(orcServiceUrl, {
+        const response = await axios.post(orcServiceUrl, {
           user_id: Number(userId) || userId,
           token,
         });
         const isActive =
-          orcData?.result?.isActive ??
-          orcData?.responseObj?.responseDataParams?.data?.isActive ??
-          orcData?.data?.isActive ??
-          orcData?.isActive ??
+          response.data?.result?.isActive ??
+          response.data?.responseObj?.responseDataParams?.data?.isActive ??
+          response.data?.data?.isActive ??
+          response.data?.isActive ??
           false;
         return { isActive: Boolean(isActive) };
       } catch (err) {
@@ -153,7 +109,6 @@ class JwtAuthGuardV3 {
       req.user = {
         ...verifiedPayload,
         virtualId: virtualId,
-        virtual_id: virtualId,
       };
       next();
     } catch (err) {
@@ -166,9 +121,4 @@ class JwtAuthGuardV3 {
   }
 }
 
-const instance = new JwtAuthGuardV3();
-instance.getEncryptionKey = getEncryptionKey;
-instance.getSigningKey = getSigningKey;
-instance.postJson = postJson;
-
-module.exports = instance;
+module.exports = new JwtAuthGuardV3();
